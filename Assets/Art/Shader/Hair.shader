@@ -15,7 +15,6 @@
 		CGPROGRAM
 		#include "HairSurf.cginc"
 		#pragma shader_feature MARSCHER_SPECULAR KAJIYA_SPECULAR
-		#define KAJIYA_SPECULAR 1
 		#pragma surface surf Hair fullforwardshadows
 
 
@@ -39,9 +38,10 @@
 			half4 flowmap = tex2D(_Flowmap, IN.uv_MainTex);
 			o.Albedo = c.rgb;
 			o.Eccentric = lerp(0.0f, 0.15f, property.r);
-			o.Normal = float3(0,1,0);
+			o.Normal = float3(0,-1,0);
 			o.Roughness = lerp(0.2, 0.5, property.g);
 			o.Alpha = c.a;
+			o.VNormal = IN.worldNormal;
 		}
 		ENDCG
 	}

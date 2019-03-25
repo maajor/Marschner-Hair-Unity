@@ -3,7 +3,8 @@
 #pragma exclude_renderers d3d11 gles
 {
 	half3 Albedo;
-	half3 Normal;
+	half3 Normal;//Tangent actually
+	half3 VNormal;//vertext normal
 	half Eccentric;
 	half Alpha;
 	half Roughness;
@@ -57,7 +58,7 @@ inline float3 SpecularFresnel(float3 F0, float vDotH) {
 	return F0 + (1.0f - F0) * pow(1 - vDotH, 5);
 }
 
-float3 HairDiffuseKajiyaUE(SurfaceOutputHair s, float3 L, float3 V, half3 N, half Shadow) {
+float3 HairDiffuseKajiyaUE(SurfaceOutputHair s, float3 L, float3 V, half3 N, half Shadow, float Backlit, float Area) {
 	float3 S = 0;
 	float KajiyaDiffuse = 1 - abs(dot(N, L));
 
@@ -67,7 +68,7 @@ float3 HairDiffuseKajiyaUE(SurfaceOutputHair s, float3 L, float3 V, half3 N, hal
 	// Hack approximation for multiple scattering.
 	float Wrap = 1;
 	float NoL = saturate((dot(N, L) + Wrap) / square(1 + Wrap));
-	float DiffuseScatter = (1 / PI) * lerp(NoL, KajiyaDiffuse, 0.33);// *GBuffer.Metallic;
+	float DiffuseScatter = (1 / PI) * lerp(NoL, KajiyaDiffuse, 0.33);// *s.Metallic;
 	float Luma = Luminance(s.Albedo);
 	float3 ScatterTint = pow(s.Albedo / Luma, 1 - Shadow);
 	S = sqrt(s.Albedo) * DiffuseScatter * ScatterTint;
@@ -173,7 +174,7 @@ float3 HairSpecularMarschnerUE(SurfaceOutputHair s, float3 L, float3 V, half3 N,
 	return S;
 }
 */
-float3 HairSpecularMarschner(SurfaceOutputHair s, float3 L, float3 V, half3 N, float Backlit)
+float3 HairSpecularMarschner(SurfaceOutputHair s, float3 L, float3 V, half3 N, float Shadow, float Backlit, float Area)
 {
 	float3 S = 0;
 
@@ -200,9 +201,9 @@ float3 HairSpecularMarschner(SurfaceOutputHair s, float3 L, float3 V, half3 N, f
 	};
 	float B[] =
 	{
-		square(s.Roughness),
-		square(s.Roughness) / 2,
-		square(s.Roughness) * 2
+		Area + square(s.Roughness),
+		Area + square(s.Roughness) / 2,
+		Area + square(s.Roughness) * 2
 	};
 
 	float hairIOF = HairIOF(s.Eccentric);
@@ -215,7 +216,7 @@ float3 HairSpecularMarschner(SurfaceOutputHair s, float3 L, float3 V, half3 N, f
 	Mp = Hair_G(B[0], ThetaH - Alpha[0]);
 	Np = 0.25 * CosHalfPhi;
 	Fp = SpecularFresnel(F0, sqrt(saturate(0.5 + 0.5 * VoL)));
-	S += Mp * Np * Fp;
+	S += (Mp * Np) * (Fp * lerp(1, Backlit, saturate(-VoL)));
 
 	// TT
 	Mp = Hair_G(B[1], ThetaH - Alpha[1]);
@@ -225,7 +226,7 @@ float3 HairSpecularMarschner(SurfaceOutputHair s, float3 L, float3 V, half3 N, f
 	Fp = square(1 - f);
 	Tp = pow(s.Albedo, 0.5 * sqrt(1 - square((h * a))) / CosThetaD);
 	Np = exp(-3.65 * CosPhi - 3.98);
-	S += (Mp * Np) * (Fp * Tp);
+	S += (Mp * Np) * (Fp * Tp) * Backlit;
 
 	// TRT
 	Mp = Hair_G(B[2], ThetaH - Alpha[2]);
@@ -258,25 +259,20 @@ float3 HairSpecularKajiya(SurfaceOutputHair s, float3 tangent1, float3 tangent2,
 	return specular;
 }
 
-float3 HairShading(SurfaceOutputHair s, float3 L, float3 V, half3 N, float Shadow)
+float3 HairShading(SurfaceOutputHair s, float3 L, float3 V, half3 N, float Shadow, float Backlit, float Area)
 {
-	float ClampedRoughness = clamp(s.Roughness, 1 / 255.0f, 1.0f);
-
 	float3 S = float3(0, 0, 0);
 
-//#if KAJIYA_SPECULAR
 	//S = HairSpecularKajiya(s, N, N, V, L); 
-//#else 
-	S = HairSpecularMarschner(s, L, V, N, 1);
-//#endif
-	S += HairDiffuseKajiyaUE(s, L, V, N, Shadow);
+	S = HairSpecularMarschner(s, L, V, N, Shadow, Backlit, Area);
+	S += HairDiffuseKajiyaUE(s, L, V, N, Shadow, Backlit, Area);
 
 	S = -min(-S, 0.0);
 
 	return S;
 }
 
-float3 HairBxDF(SurfaceOutputHair s, half3 N, half3 V, half3 L, float shadow)
+float3 HairBxDF(SurfaceOutputHair s, half3 N, half3 V, half3 L, float Shadow, float Backlit, float Area)
 {
-	return HairShading(s, L, V, N, shadow);
+	return HairShading(s, L, V, N, Shadow, Backlit, Area);
 }
