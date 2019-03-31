@@ -68,7 +68,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
-    - _EccentricityMean: 0.07
+    - _EccentricityMean: 0.06
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
@@ -83,8 +83,8 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _ColorVariationRange: {r: 4.33, g: -1.46, b: -0.84, a: 0.01}
+    - _ColorVariationRange: {r: 2, g: -1, b: -0.84, a: 0.01}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _RootColor: {r: 0.047169805, g: 0.022386832, b: 0.006897471, a: 1}
+    - _RootColor: {r: 0.18867922, g: 0.0962976, b: 0.03470986, a: 1}
     - _RoughnessRange: {r: 0.25, g: 0.4, b: 0, a: 0}
-    - _TipColor: {r: 0.1882353, g: 0.09019608, b: 0.02745098, a: 1}
+    - _TipColor: {r: 0.4339623, g: 0.21553327, b: 0.0757387, a: 1}

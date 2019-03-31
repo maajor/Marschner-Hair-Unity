@@ -11,66 +11,15 @@
 		_RoughnessRange("RoughnessRange", Vector) = (0.3, 0.5,0,0)
     }
     SubShader
-	{/*
-		Pass
-		 {
-			 Name "Depth"
-			 Tags { "RenderType" = "AlphaTest" "LightMode" = "ForwardBase"  }
-			 Fog { Mode Off }
-			 ZWrite On ZTest Less Cull Off
-			 Offset 1, 1
-			 //ColorMask 0
-
-			 CGPROGRAM
-
-			 #pragma vertex vert
-				#pragma fragment frag
-			#pragma multi_compile_fwdbase
-				//#pragma fragmentoption ARB_precision_hint_fastest
-				#include "UnityCG.cginc"
-			#include "AutoLight.cginc"
-
-			sampler2D _MainTex;
-				struct v2f {
-					float4 pos          : POSITION;
-					float4 uv    : TEXCOORD0;
-					float3 worldPos : TEXCOORD1;
-					LIGHTING_COORDS(2,3)
-				};
-
-				v2f vert(appdata_full v)
-				{
-					v2f o;
-					o.pos = UnityObjectToClipPos(v.vertex);
-					o.worldPos = mul(unity_ObjectToWorld, v.vertex);
-					o.uv = v.texcoord;
-					TRANSFER_VERTEX_TO_FRAGMENT(o);
-					return o;
-				}
-
-				half4 frag(v2f i) : COLOR
-				{
-					half4 property = tex2D(_MainTex, i.uv);
-					clip(property.w-0.99f);
-					float atten = LIGHT_ATTENUATION(i);
-					return half4(atten, atten, atten,1);
-				}
-			ENDCG
-		  }*/
-			
-		Tags { "RenderType" = "AlphaTest" }
+	{	
+		Tags { "RenderType" = "AlphaTest"}
 		LOD 200
 		Cull Off
-		//ZWrite Off
 
 		CGPROGRAM
 		#include "HairSurf.cginc"
-		//#include "AutoLight.cginc"
-		#pragma shader_feature MARSCHER_SPECULAR KAJIYA_SPECULAR
-		#pragma surface surf Hair fullforwardshadows// alpha:premul
+		#pragma surface surf Hair fullforwardshadows vertex:vert
 
-
-		// Use shader model 3.0 target, to get nicer looking lighting
 		#pragma target 3.0
 
 		sampler2D _MainTex;
@@ -85,10 +34,16 @@
 		struct Input
 		{
 			float2 uv_MainTex;
-			float3 worldPos;
-			float3 worldNormal;
+			float4 screenUV;
+			float3 worldN;
 		};
 
+		void vert(inout appdata_full v, out Input o) {
+			UNITY_INITIALIZE_OUTPUT(Input, o);
+			o.uv_MainTex = v.texcoord;
+			o.worldN = UnityWorldToObjectDir(v.normal);
+			o.screenUV = ComputeScreenPos(UnityObjectToClipPos(v.vertex));
+		}
 		float3 rgb2hsv(float3 c)
 		{
 			float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
@@ -107,6 +62,25 @@
 			return c.z * lerp(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 		}
 
+		float ScreenDitherToAlpha(float x, float y, float c0)
+		{
+			const float dither[64] = {
+				0, 32, 8, 40, 2, 34, 10, 42,
+				48, 16, 56, 24, 50, 18, 58, 26 ,
+				12, 44, 4, 36, 14, 46, 6, 38 ,
+				60, 28, 52, 20, 62, 30, 54, 22,
+				3, 35, 11, 43, 1, 33, 9, 41,
+				51, 19, 59, 27, 49, 17, 57, 25,
+				15, 47, 7, 39, 13, 45, 5, 37,
+				63, 31, 55, 23, 61, 29, 53, 21 };
+
+			int xMat = int(x) & 7;
+			int yMat = int(y) & 7;
+
+			float limit = (dither[yMat * 8 + xMat] + 11.0) / 64.0;
+			return lerp(limit*c0, 1.0, c0);
+		}
+
 		void surf(Input IN, inout SurfaceOutputHair o)
 		{
 			half4 property = tex2D(_MainTex, IN.uv_MainTex);
@@ -120,8 +94,13 @@
 			o.Eccentric = lerp(0.0f, _EccentricityMean * 2, property.r);
 			o.Normal = flowmap * 2.0f - 1.0f;
 			o.Roughness = lerp(_RoughnessRange.x, _RoughnessRange.y, property.g);
-			o.Alpha = saturate(property.a);
-			o.VNormal = IN.worldNormal;
+
+			//animating dither
+		    float2 screenPixel = (IN.screenUV.xy/IN.screenUV.w)* _ScreenParams.xy + _Time.yz*100;
+			float dither = ScreenDitherToAlpha(screenPixel.x, screenPixel.y, property.a);
+			o.Alpha = dither;
+
+			o.VNormal = IN.worldN;
 		}
 		ENDCG
 	}
